@@ -16,7 +16,6 @@ st.set_page_config(
 # --- Function Definitions ---
 
 def extract_text_from_pdf(uploaded_file):
-    # (This function remains the same)
     try:
         pdf_reader = pypdf.PdfReader(io.BytesIO(uploaded_file.getvalue()))
         text = ""
@@ -29,16 +28,16 @@ def extract_text_from_pdf(uploaded_file):
         st.error(f"Error reading PDF file: {e}")
         return None
 
-# --- NEW: Heavily revised function to properly render tables in PDF ---
+# --- FINAL, ROBUST PDF GENERATION CLASS AND FUNCTION ---
 class PDF(FPDF):
     def __init__(self, institute_name):
         super().__init__()
         self.institute_name = institute_name
-        # Add font support
         font_path = 'DejaVuSans.ttf'
         if os.path.exists(font_path):
             self.add_font('DejaVu', '', font_path, uni=True)
             self.add_font('DejaVu', 'B', font_path, uni=True)
+            self.add_font('DejaVu', 'I', font_path, uni=True)
             self.set_font('DejaVu', '', 10)
         else:
             st.warning("DejaVuSans.ttf not found. PDF may have character issues.")
@@ -63,53 +62,48 @@ class PDF(FPDF):
                 self.multi_cell(0, 10, line[2:], ln=1)
                 self.set_font('DejaVu', '', 10)
             elif line.startswith('### '):
-                self.ln(5) # Add space before section header
+                self.ln(5)
                 self.set_font('DejaVu', 'B', 12)
                 self.multi_cell(0, 8, line[4:], ln=1, border='B')
                 self.set_font('DejaVu', '', 10)
                 self.ln(3)
             elif line.startswith('|'):
-                # This is a table row
                 cells = [c.strip() for c in line.split('|')[1:-1]]
-                
-                # Define column widths based on number of cells to match NIETT format
-                if len(cells) == 4: # Scheme of Teaching table
-                    col_widths = [80, 25, 35, 20]
-                elif len(cells) == 3: # Teaching Aids / Personal Experience table
-                    col_widths = [20, 80, 60]
-                else: # Default for other tables
-                    col_widths = [w for w in [40, 120] for i in range(len(cells))]
+                if not cells: continue
 
-                # Calculate max height of the row
-                max_height = 0
+                if len(cells) == 4:
+                    col_widths = [80, 25, 35, 20]
+                elif len(cells) == 3:
+                    col_widths = [20, 80, 60]
+                else:
+                    col_widths = [40, 120]
+
+                line_height = 5
+                max_lines = 1
                 for i, cell in enumerate(cells):
-                    # Temporarily set font for height calculation
-                    if '**' in cell: self.set_font('DejaVu', 'B', 10)
-                    else: self.set_font('DejaVu', '', 10)
-                    
-                    # Calculate height needed for the cell text
-                    h = self.get_string_width(cell) / col_widths[i] * 5  # Approximate height
-                    if h > max_height:
-                        max_height = h
+                    text_width = self.get_string_width(cell.replace('**', ''))
+                    num_lines = (text_width // col_widths[i]) + 1
+                    if num_lines > max_lines:
+                        max_lines = num_lines
                 
-                # Draw the cells
+                row_height = line_height * max_lines
+                
+                x_start, y_start = self.get_x(), self.get_y()
                 for i, cell in enumerate(cells):
-                    # Set font for bolding
+                    current_x = self.get_x()
+                    current_y = self.get_y()
+                    
                     if '**' in cell:
                         self.set_font('DejaVu', 'B', 10)
                         cell = cell.replace('**', '')
                     else:
                         self.set_font('DejaVu', '', 10)
-
-                    # Get current X, Y
-                    x, y = self.get_x(), self.get_y()
-                    self.multi_cell(col_widths[i], 5, cell, border=1, ln=3) # ln=3 moves to next cell
-                    # Reset position for next cell in the same row
-                    self.set_xy(x + col_widths[i], y)
+                    
+                    self.multi_cell(col_widths[i], line_height, cell, border=1, align='L')
+                    self.set_xy(current_x + col_widths[i], current_y)
                 
-                self.ln(max_height if max_height > 5 else 5) # Move down after the row
+                self.set_xy(x_start, y_start + row_height)
                 self.set_font('DejaVu', '', 10)
-
             else:
                 self.multi_cell(0, 5, line, ln=1)
 
@@ -117,11 +111,10 @@ def markdown_to_pdf(markdown_text, subject, institute_name):
     pdf = PDF(institute_name=institute_name)
     pdf.add_page()
     pdf.write_markdown(markdown_text)
-    # --- BUG FIX: Removed the redundant .encode() call ---
-    return pdf.output()
+    # --- BUG FIX: Explicitly convert the bytearray from output() to bytes ---
+    return bytes(pdf.output())
 
 def generate_lesson_plan(final_prompt):
-    # (This function remains the same)
     url = "http://localhost:11434/api/generate"
     payload = { "model": "phi3:mini", "prompt": final_prompt, "stream": False }
     try:
@@ -133,7 +126,7 @@ def generate_lesson_plan(final_prompt):
     except requests.exceptions.RequestException as e:
         return f"Error connecting to Ollama: {e}."
 
-# --- MASTER PROMPT TEMPLATE (Paste the new prompt from Step 1 here) ---
+# --- MASTER PROMPT TEMPLATE (This remains the same) ---
 MASTER_PROMPT_TEMPLATE = """
 You are an expert instructional designer and master trainer for a military educational institution. Your task is to create a hyper-detailed, all-inclusive lesson plan.
 
@@ -231,9 +224,7 @@ You are an expert instructional designer and master trainer for a military educa
 Now, generate the complete lesson plan.
 """
 
-# --- Main Application UI ---
-# (This part remains the same as the previous version)
-
+# --- Main Application UI (This remains the same) ---
 st.title("⚓ AI Lesson Plan Generator")
 st.markdown("This tool generates a hyper-detailed lesson plan in your institute's format, customized to your teaching style.")
 
