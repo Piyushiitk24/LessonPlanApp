@@ -3,7 +3,8 @@ import requests
 import json
 import pypdf
 import io
-from fpdf import FPDF # --- NEW: Import PDF generation library ---
+from fpdf import FPDF
+import os
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -33,21 +34,25 @@ class PDF(FPDF):
     def __init__(self, institute_name="NIETT", *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.institute_name = institute_name
+        # Add a Unicode font (ensure the .ttf file is in your project directory)
+        font_path = os.path.join(os.path.dirname(__file__), "DejaVuSans.ttf")
+        self.add_font("DejaVu", "", font_path, uni=True)
+        self.set_font("DejaVu", size=10)
 
     def header(self):
-        self.set_font('Helvetica', 'B', 12)
+        self.set_font("DejaVu", "B", 12)
         self.cell(0, 10, self.institute_name, 0, 1, 'C')
         self.ln(5)
 
     def footer(self):
         self.set_y(-15)
-        self.set_font('Helvetica', 'I', 8)
+        self.set_font("DejaVu", "I", 8)
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
 
 def markdown_to_pdf(markdown_text, subject, institute_name="NIETT"):
     pdf = PDF(institute_name=institute_name)
     pdf.add_page()
-    pdf.set_font("Helvetica", size=10)
+    pdf.set_font("DejaVu", size=10)
     
     # Use multi_cell for markdown rendering
     pdf.multi_cell(0, 5, markdown_text)
