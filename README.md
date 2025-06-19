@@ -16,6 +16,7 @@ As educators, we spend countless hours drafting lesson plans. This tool streamli
 - **🎨 Customisable Output:** Easily adjust settings like teaching style, course name, and other references through a simple user interface.
 - **🔧 Open & Extendable:** Built with Python and Streamlit, the core prompt and logic are easy to modify to fit any curriculum's format.
 - **💻 Cross-Platform:** Works on macOS, Windows, and Linux (wherever Ollama can run).
+- **📑 PDF Export:** Save the generated lesson plan as a `.pdf` file using `fpdf2`.
 
 ## 🛠️ Tech Stack
 
@@ -24,6 +25,7 @@ As educators, we spend countless hours drafting lesson plans. This tool streamli
 - **LLM Server:** Ollama  
 - **LLM:** Microsoft Phi-3 Mini (or any other model supported by Ollama)  
 - **PDF Processing:** PyPDF
+- **PDF Export:** fpdf2
 
 ## 📋 Prerequisites
 
