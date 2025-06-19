@@ -5,6 +5,7 @@ import pypdf
 import io
 from fpdf import FPDF
 import os
+import re
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -33,12 +34,12 @@ class PDF(FPDF):
     def __init__(self, institute_name):
         super().__init__()
         self.institute_name = institute_name
+        self.set_auto_page_break(auto=True, margin=15)
         font_path = 'DejaVuSans.ttf'
         if os.path.exists(font_path):
             self.add_font('DejaVu', '', font_path, uni=True)
             self.add_font('DejaVu', 'B', font_path, uni=True)
             self.add_font('DejaVu', 'I', font_path, uni=True)
-            self.set_font('DejaVu', '', 10)
         else:
             st.warning("DejaVuSans.ttf not found. PDF may have character issues.")
             self.set_font("Helvetica", size=10)
@@ -54,64 +55,87 @@ class PDF(FPDF):
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
 
     def write_markdown(self, markdown_text):
-        self.set_font('DejaVu', '', 10)
         lines = markdown_text.split('\n')
         for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Headings
             if line.startswith('# '):
                 self.set_font('DejaVu', 'B', 16)
                 self.multi_cell(0, 10, line[2:], ln=1)
-                self.set_font('DejaVu', '', 10)
             elif line.startswith('### '):
                 self.ln(5)
                 self.set_font('DejaVu', 'B', 12)
                 self.multi_cell(0, 8, line[4:], ln=1, border='B')
-                self.set_font('DejaVu', '', 10)
                 self.ln(3)
+            # Tables
             elif line.startswith('|'):
-                cells = [c.strip() for c in line.split('|')[1:-1]]
-                if not cells: continue
-
-                if len(cells) == 4:
-                    col_widths = [80, 25, 35, 20]
-                elif len(cells) == 3:
-                    col_widths = [20, 80, 60]
-                else:
-                    col_widths = [40, 120]
-
-                line_height = 5
-                max_lines = 1
-                for i, cell in enumerate(cells):
-                    text_width = self.get_string_width(cell.replace('**', ''))
-                    num_lines = (text_width // col_widths[i]) + 1
-                    if num_lines > max_lines:
-                        max_lines = num_lines
-                
-                row_height = line_height * max_lines
-                
-                x_start, y_start = self.get_x(), self.get_y()
-                for i, cell in enumerate(cells):
-                    current_x = self.get_x()
-                    current_y = self.get_y()
-                    
-                    if '**' in cell:
-                        self.set_font('DejaVu', 'B', 10)
-                        cell = cell.replace('**', '')
-                    else:
-                        self.set_font('DejaVu', '', 10)
-                    
-                    self.multi_cell(col_widths[i], line_height, cell, border=1, align='L')
-                    self.set_xy(current_x + col_widths[i], current_y)
-                
-                self.set_xy(x_start, y_start + row_height)
+                self.draw_table_row(line)
+            # Blockquotes
+            elif line.startswith('> '):
+                self.set_font('DejaVu', 'I', 10)
+                self.set_x(15) # Indent
+                self.multi_cell(0, 5, line[2:], ln=1)
+                self.set_x(10) # Reset indent
+            # List Items
+            elif line.startswith('* '):
                 self.set_font('DejaVu', '', 10)
+                self.set_x(15)
+                self.multi_cell(0, 5, f"• {line[2:]}", ln=1)
+                self.set_x(10)
+            # Bold Text (entire line)
+            elif line.startswith('**') and line.endswith('**'):
+                self.set_font('DejaVu', 'B', 10)
+                self.multi_cell(0, 5, line[2:-2], ln=1)
+            # Regular Text
             else:
+                self.set_font('DejaVu', '', 10)
                 self.multi_cell(0, 5, line, ln=1)
+
+    def draw_table_row(self, line):
+        self.set_font('DejaVu', '', 9)
+        cells = [c.strip() for c in line.split('|')[1:-1]]
+        if not cells: return
+
+        if len(cells) == 4: col_widths = [85, 25, 35, 20]
+        elif len(cells) == 3: col_widths = [20, 85, 60]
+        elif len(cells) == 2: col_widths = [65, 100]
+        else: col_widths = [165 / len(cells)] * len(cells)
+
+        line_height = 5
+        max_lines = 1
+        for i, cell in enumerate(cells):
+            clean_cell = cell.replace('**', '').replace('<br>', '\n')
+            text_width = self.get_string_width(clean_cell)
+            num_lines = (text_width // col_widths[i]) + 1 + clean_cell.count('\n')
+            if num_lines > max_lines:
+                max_lines = num_lines
+        
+        row_height = line_height * max_lines
+        
+        x_start, y_start = self.get_x(), self.get_y()
+        for i, cell in enumerate(cells):
+            current_x = self.get_x()
+            current_y = self.get_y()
+            
+            if '**' in cell:
+                self.set_font('DejaVu', 'B', 9)
+                cell = cell.replace('**', '')
+            else:
+                self.set_font('DejaVu', '', 9)
+            
+            clean_cell = cell.replace('<br>', '\n')
+            self.multi_cell(col_widths[i], line_height, clean_cell, border=1, align='L', ln=3)
+            self.set_xy(current_x + col_widths[i], current_y)
+        
+        self.set_xy(x_start, y_start + row_height)
 
 def markdown_to_pdf(markdown_text, subject, institute_name):
     pdf = PDF(institute_name=institute_name)
     pdf.add_page()
     pdf.write_markdown(markdown_text)
-    # --- BUG FIX: Explicitly convert the bytearray from output() to bytes ---
     return bytes(pdf.output())
 
 def generate_lesson_plan(final_prompt):
@@ -133,8 +157,8 @@ You are an expert instructional designer and master trainer for a military educa
 **CRITICAL INSTRUCTIONS:**
 1.  **Strictly Adhere to the Format:** Use Markdown tables and headers exactly as specified in the template below. **IMPORTANT: Do NOT include the Markdown table header separator line (e.g., | :--- | :--- |) in your output.**
 2.  **Prioritize Teaching Style:** The most important customization is the **Teaching Style: '{teaching_style}'**. You MUST adapt the 'SCHEME OF TEACHING' section to perfectly match this style.
-3.  **Be Hyper-Specific:** Do not provide generic guidance. Write the exact questions, examples, and talking points the instructor should use.
-4.  **Hybrid Knowledge:** If 'Reference Document Context' is provided, base your content primarily on it. Otherwise, rely on your own expertise about the syllabus topic.
+3.  **Use `<br>` for line breaks inside table cells.**
+4.  **Be Hyper-Specific:** Do not provide generic guidance. Write the exact questions, examples, and talking points the instructor should use.
 5.  **Fill Every Section:** Provide plausible and detailed content for all parts of the lesson plan.
 
 ---
@@ -153,7 +177,7 @@ You are an expert instructional designer and master trainer for a military educa
 
 ### **PART A**
 
-| 1. TOPIC | {topic} |
+| **1. TOPIC** | {topic} |
 | **2. TOTAL NUMBER OF SESSIONS FOR THIS TOPIC** | 01 |
 | **3. SEQUENCE OF THIS SESSION** | 01/01 |
 
