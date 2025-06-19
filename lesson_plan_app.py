@@ -30,9 +30,13 @@ def extract_text_from_pdf(uploaded_file):
 
 # --- NEW: Function to convert Markdown to PDF ---
 class PDF(FPDF):
+    def __init__(self, institute_name="NIETT", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.institute_name = institute_name
+
     def header(self):
         self.set_font('Helvetica', 'B', 12)
-        self.cell(0, 10, 'NAVAL INSTITUTE OF EDUCATIONAL AND TRAINING TECHNOLOGY', 0, 1, 'C')
+        self.cell(0, 10, self.institute_name, 0, 1, 'C')
         self.ln(5)
 
     def footer(self):
@@ -40,8 +44,8 @@ class PDF(FPDF):
         self.set_font('Helvetica', 'I', 8)
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
 
-def markdown_to_pdf(markdown_text, subject):
-    pdf = PDF()
+def markdown_to_pdf(markdown_text, subject, institute_name="NIETT"):
+    pdf = PDF(institute_name=institute_name)
     pdf.add_page()
     pdf.set_font("Helvetica", size=10)
     
@@ -189,6 +193,8 @@ if 'generated_plan' not in st.session_state:
 with st.sidebar:
     st.header("⚙️ 1. Lesson Details")
     
+    institute_input = st.text_input("Institute Name:", "NIETT")  # <-- NEW FIELD
+    
     subject_input = st.text_input("Subject:", "Training Technology")
     class_input = st.text_input("Class:", "TT(O)")
     
@@ -260,7 +266,11 @@ if st.session_state.generated_plan:
         
         # --- NEW: PDF Download Button ---
         try:
-            pdf_bytes = markdown_to_pdf(st.session_state.generated_plan, subject_input)
+            pdf_bytes = markdown_to_pdf(
+                st.session_state.generated_plan,
+                subject_input,
+                institute_name=institute_input  # <-- Pass user input here
+            )
             st.download_button(
                 label="📥 Download as PDF",
                 data=pdf_bytes,
